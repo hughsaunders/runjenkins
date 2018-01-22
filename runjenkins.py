@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
 import time
@@ -97,7 +97,7 @@ def runbuild():
                         print ".",
                     time.sleep(15)
     except BuildFailureException as e:
-        print e
+        print(e)
         context.exit(1)
 
 
