@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import os
 import time
 import webbrowser
@@ -40,16 +41,22 @@ class Obj(object):
 class BuildFailureException(Exception):
     pass
 
+logger = logging.getLogger()
 
 @click.group()
 @click.option('--credsfile', default="~/.runjenkinscreds.yml")
 @click.option('--conffile', default="./runjenkins.yml")
-def cli(credsfile, conffile):
+@click.option('--debug/--no-debug', default=False)
+def cli(credsfile, conffile, debug):
+    if debug:
+        logger.setLevel(logging.DEBUG)
+    logger.debug("RunJenkins")
     context = click.get_current_context()
     context.obj = Obj()
     obj = context.obj
     obj.creds = yaml.load(open(os.path.expanduser(credsfile), 'r'))
     obj.conf = yaml.load(open(conffile, 'r'))
+    logging.debug("Config: {}".format(obj.conf))
     obj.server = jenkins.Jenkins(obj.creds['url'],
                                  username=obj.creds['user'],
                                  password=obj.creds['password'])
