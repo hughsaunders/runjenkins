@@ -10,7 +10,6 @@ import click
 import jenkins
 import yaml
 
-
 # Tool for running jenkins jobs from cli, based on yaml configs.
 # The ideas is that you have a single creds file, then put a config
 # file in each repo/workspace. Then add it to your commit.
@@ -48,7 +47,9 @@ class Obj(object):
 class BuildFailureException(Exception):
     pass
 
+
 logger = logging.getLogger()
+
 
 @click.group()
 @click.option('--credsfile', default="~/.runjenkinscreds.yml")
@@ -74,33 +75,33 @@ def _runbuild(job_name, params, server):
     # This is very racy. jenkins.Jenkins.build_job should return
     # something useful so we don't have to guess the build number
     logger.debug("Run Build: {jn}, {p}".format(jn=job_name, p=params))
-    l = threading.local()
-    l.current_thread = threading.current_thread()
-    l.prog_marker = "[{}]".format(l.current_thread.getName())
+    lo = threading.local()
+    lo.current_thread = threading.current_thread()
+    lo.prog_marker = "[{}]".format(lo.current_thread.getName())
     # when not running in parallel, use a shorter progress marker
-    if l.prog_marker == "[MainThread]":
-        l.prog_marker = "."
-    l.nbn = server.get_job_info(job_name)['nextBuildNumber']
+    if lo.prog_marker == "[MainThread]":
+        lo.prog_marker = "."
+    lo.nbn = server.get_job_info(job_name)['nextBuildNumber']
     server.build_job(job_name, params)
-    l.print_info = True
+    lo.print_info = True
     while True:
         try:
-            l.build_info = server.get_build_info(job_name, l.nbn)
+            lo.build_info = server.get_build_info(job_name, lo.nbn)
             # get_build_info may fail, print info once after
             # it succeeds.
-            if l.print_info:
-                print ("Started build, job_name: {jn},"
-                       " params: {p}, url: {u}"
-                       .format(jn=job_name,
-                               p=params,
-                               u=l.build_info['url']))
-                l.print_info = False
-            if l.build_info['building'] is False:
-                l.result = l.build_info['result']
+            if lo.print_info:
+                print("Started build, job_name: {jn},"
+                      " params: {p}, url: {u}"
+                      .format(jn=job_name,
+                              p=params,
+                              u=lo.build_info['url']))
+                lo.print_info = False
+            if lo.build_info['building'] is False:
+                lo.result = lo.build_info['result']
                 print("{jn} complete, result:{r}".format(
-                    jn=job_name, r=l.build_info['result']))
-                if l.result != "SUCCESS":
-                    webbrowser.open(l.build_info['url'])
+                    jn=job_name, r=lo.build_info['result']))
+                if lo.result != "SUCCESS":
+                    webbrowser.open(lo.build_info['url'])
                     raise BuildFailureException(
                         "Job {jn} failed :(".format(jn=job_name))
                 break
@@ -108,7 +109,7 @@ def _runbuild(job_name, params, server):
                 jenkins.JenkinsException):
             print("x", end="")
         else:
-            print(l.prog_marker, end= "")
+            print(lo.prog_marker, end="")
         time.sleep(15)
 
 
@@ -163,6 +164,7 @@ def runbuild():
     except BuildFailureException as e:
         print(e)
         context.exit(1)
+
 
 if __name__ == "__main__":
     cli()
