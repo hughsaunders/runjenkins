@@ -2,6 +2,7 @@
 
 import logging
 import os
+import sys
 import threading
 import time
 import webbrowser
@@ -71,16 +72,27 @@ def cli(credsfile, conffile, debug):
     logger.debug("Connection Established")
 
 
-def _runbuild(job_name, params, server):
-    # This is very racy. jenkins.Jenkins.build_job should return
-    # something useful so we don't have to guess the build number
+def _runbuild(job_name, params, server, poll_interval=15):
+    """Start a build, poll until it exits."""
+    # This function should be threadsafe, its run by threading.Thread
+
     logger.debug("Run Build: {jn}, {p}".format(jn=job_name, p=params))
+
+    # To avoid thread conflicts, locals should be stored on the
+    # lo object
     lo = threading.local()
     lo.current_thread = threading.current_thread()
-    lo.prog_marker = "[{}]".format(lo.current_thread.getName())
-    # when not running in parallel, use a shorter progress marker
-    if lo.prog_marker == "[MainThread]":
-        lo.prog_marker = "."
+
+    # Set thread name to job name to make it easy to determine which
+    # job/thread an exception ocurred in.
+    lo.current_thread.setName(job_name)
+
+    # pick a lower case letter to identify this thread, used when printing
+    # progress markers
+    lo.prog_marker = chr(((lo.current_thread.ident % 26) + 97))
+
+    # This is very racy. jenkins.Jenkins.build_job should return
+    # something useful so we don't have to guess the build number
     lo.nbn = server.get_job_info(job_name)['nextBuildNumber']
     server.build_job(job_name, params)
     lo.print_info = True
@@ -91,15 +103,19 @@ def _runbuild(job_name, params, server):
             # it succeeds.
             if lo.print_info:
                 print("Started build, job_name: {jn},"
-                      " params: {p}, url: {u}"
+                      " params: {p}, url: {u}, progress marker: {pm}"
                       .format(jn=job_name,
                               p=params,
-                              u=lo.build_info['url']))
+                              u=lo.build_info['url'],
+                              pm=lo.prog_marker),
+                      flush=True)
                 lo.print_info = False
+                # avoid printing progress marker after initial job info
+                continue
             if lo.build_info['building'] is False:
                 lo.result = lo.build_info['result']
                 print("{jn} complete, result:{r}".format(
-                    jn=job_name, r=lo.build_info['result']))
+                    jn=job_name, r=lo.build_info['result']), flush=True)
                 if lo.result != "SUCCESS":
                     webbrowser.open(lo.build_info['url'])
                     raise BuildFailureException(
@@ -107,14 +123,24 @@ def _runbuild(job_name, params, server):
                 break
         except (jenkins.NotFoundException,
                 jenkins.JenkinsException):
-            print("x", end="")
+            # print an exception marker for any exceptions after the
+            # initial queuing period.
+            if not lo.print_info:
+                print("{pm}-x".format(pm=lo.prog_marker), end=" ", flush=True)
+            else:
+                # Reduce polling interval while waiting for build to start
+                time.sleep(1)
+                continue
         else:
-            print(lo.prog_marker, end="")
-        time.sleep(15)
+            # print a progress marker
+            print(lo.prog_marker, sep=" ", end=" ", flush=True)
+        time.sleep(poll_interval)
 
 
 @cli.command()
-def runbuild():
+@click.option("--poll-interval", default=15,
+              help="How often to poll for build status in seconds.")
+def runbuild(poll_interval):
     """Run predefined builds."""
     context = click.get_current_context()
     obj = context.obj
@@ -127,7 +153,8 @@ def runbuild():
         #     print ""
 
         # Checking all jobs exist initially isn't a good idea as
-        # some jobs may be created by earlier jobs (eg when using JJB)
+        # some jobs may be created by earlier jobs for example
+        # when using JJB.
 
         for jobdict in obj.conf:
                 job_name = list(jobdict.keys())[0]
@@ -150,17 +177,23 @@ def runbuild():
                         params = p_jobdict[job_name]
                         job_thread = threading.Thread(target=_runbuild,
                                                       args=(job_name, params,
-                                                            obj.server))
+                                                            obj.server,
+                                                            poll_interval))
                         threads.append(job_thread)
-                        job_thread.setName(job_name)
                         job_thread.start()
 
                     # Wait for every thread to finish before continuing
                     for t in threads:
-                        t.join()
+                        # join with a short timeout so the main thread
+                        # can be interrupted regularly (eg by ctrl-c)
+                        while True:
+                            t.join(1)
+                            if not t.isAlive():
+                                break
                 else:
                     raise ValueError("Invalid runjenkins conf")
-
+    # TODO: Does this actually work? may not be possible to
+    # catch exceptions across threads
     except BuildFailureException as e:
         print(e)
         context.exit(1)
