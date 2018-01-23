@@ -14,5 +14,6 @@ deploy:
   password:
     secure: Yrs/AcqfKUkpZ8eY8rTxhZNpVuBlYLRgDpzJt/HJ8SVQmfSR4X7MyO1sCcLXU/Yvbybs/TZs95feah+fQ9TxJqGqIXMLLwN7NX36UGaZNZWjuSunERaq6xbtDq/kuhwix8FK7Bsx2RX61gzrPeLF/+f9H7C3AsH/G6mqlVPQfPxsnzlMaJGJ5CbgfovGUWJBtC+BML+BfARoBo9GWms8v/UQQqFFKrmQw4Js1W9Y/3VS5fBlrEOcKDfNk765ckKHoJDuao3ezpBJ6xQz6G/37F3FoAeKWTQZ1xH0OE9z3z8fjNX9VbeSbjQMfYShf3/wzqdan+O4cbZaZd7GevNLJFYhElNadU0Wq8KhYNdbBdQ3X4pucc5+VSuE+wZgyDcgkgu26X2f9C1qYlUXJKMc1wYgR0sTi00VhmTqs0bpHtEjStI91L/AVJHv/DAbg18PcpmaCOiFeCQxfX9f2egx4WOmNwdJSY4pRQq7YLXBsWrVKBsDXrSD7efbIrWJwxu2N2r3XgB48caNJ0Dvc+oJCQ7v3KwxOxXPUiuxfLRVAoJnWGJ/2TCwxps5DDM0Abp5M93ogSeflgGlHJHCRYCRwt2AKzR9T42K8W9Oq8jglml2i7fghKHHwAfCiM+HodW4cCQ3A+gTFSBV889XsCw7dxePo/K4qwGzM+zu+FQztxE=
   on:
-    branch: master
+    tags: true
+    version: 3.6
   distributions: sdist bdist_wheel
