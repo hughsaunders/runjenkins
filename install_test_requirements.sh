@@ -2,4 +2,4 @@
 
 echo "Install Test Requirements"
 pip install .
-pip install -r test-requirements.txt
+pip install -I -r test-requirements.txt
