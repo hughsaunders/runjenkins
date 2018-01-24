@@ -1,10 +1,13 @@
 import datetime
+import os
 
 from setuptools import find_packages, setup
 
 setup(
     name='runjenkins',
     description='Run jenkins jobs from the cli using yaml configs',
+    long_description=open(os.path.join(os.path.dirname(__file__),
+                          "README.rst")).read(),
     url='https://github.com/hughsaunders/runjenkins',
     author='Hugh Saunders',
     author_email='hugh@wherenow.org',

@@ -10,35 +10,6 @@ import click
 import jenkins
 import yaml
 
-# Tool for running jenkins jobs from cli, based on yaml configs.
-# The ideas is that you have a single creds file, then put a config
-# file in each repo/workspace. Then add it to your commit.
-# hook/alias/function/script/whatever so that you can run jobs on commit.
-
-# I know the obvious way to run jobs on commit is to open a PR, and use
-# branch source or GHPRB. However when developing JJB jobs, I often want
-# to run a job that runs JJB, then the job that was created.
-
-# Creds:
-# ---
-#  url:  https://myjenkins.example.com/
-#  user: foo
-#  password: bah
-
-# Conf:
-# ---
-# - myjob:
-#     myparamkey: myparamvalue
-# - mynextjob:
-#     parama: 1
-#     paramb: false
-# - parallel group: # <-- name arbitrary, parallel detected by val=list
-#                         rather than dict
-#   - myparalleljob:
-#       param: val
-#   - otherparalleljob:
-#       param: val
-
 
 class Obj(object):
     pass

@@ -8,3 +8,10 @@ fi
 bashate *.sh
 pylama --skip "*venv/*"
 pytest test_runjenkins.py
+
+if which pandoc; then
+    pandoc -f markdown -t rst README.md > README.rst
+    git add README.rst
+else
+    echo "skipping pandoc as not available"
+fi
