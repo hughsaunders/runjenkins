@@ -1,4 +1,6 @@
-from setuptools import setup, find_packages
+import datetime
+
+from setuptools import find_packages, setup
 
 setup(
     name='runjenkins',
@@ -8,6 +10,8 @@ setup(
     author_email='hugh@wherenow.org',
     license='Apache',
     packages=find_packages(),
+    python_requires='>=3',
+    version=datetime.datetime.now().strftime("%Y.%m.%d"),
     install_requires=[
         'click==6.7',
         'python-jenkins==0.4.15',
