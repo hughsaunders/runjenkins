@@ -2,6 +2,7 @@
 
 import logging
 import os
+import queue
 import threading
 import time
 import webbrowser
@@ -42,7 +43,8 @@ def cli(credsfile, conffile, debug):
     logger.debug("Connection Established")
 
 
-def _runbuild(job_name, params, server, poll_interval=15):
+def _runbuild(job_name, params, server, poll_interval=15,
+              results=queue.Queue()):
     """Start a build, poll until it exits."""
     # This function should be threadsafe, its run by threading.Thread
 
@@ -88,8 +90,10 @@ def _runbuild(job_name, params, server, poll_interval=15):
                     jn=job_name, r=lo.build_info['result']), flush=True)
                 if lo.result != "SUCCESS":
                     webbrowser.open(lo.build_info['url'])
+                    results.put(False)
                     raise BuildFailureException(
                         "Job {jn} failed :(".format(jn=job_name))
+                results.put(True)
                 break
         except (jenkins.NotFoundException,
                 jenkins.JenkinsException):
@@ -110,63 +114,89 @@ def _runbuild(job_name, params, server, poll_interval=15):
 @cli.command()
 @click.option("--poll-interval", default=15,
               help="How often to poll for build status in seconds.")
-def runbuild(poll_interval):
+@click.option("--check-jobs-exist/--no-check-jobs-exist", default=False,
+              help="When enabled, runjenkins will ensure all jobs referenced"
+              "by the config exist before starting the first build.")
+def runbuild(poll_interval, check_jobs_exist):
     """Run predefined builds."""
     context = click.get_current_context()
     obj = context.obj
-    try:
+
+    if check_jobs_exist:
         # Check all the requested jobs exist before starting
-        # jobs = obj.server.get_jobs()
-        # server_job_names = [j['name'] for j in jobs]
-        # config_job_names = [list(c.keys())[0] for c in obj.conf]
-        # if not all(cjn in server_job_names for cjn in config_job_names):
-        #     print ""
+        logger.debug("Checking jobs exist before starting builds")
+        jobs = obj.server.get_jobs()
+        server_job_names = [j['name'] for j in jobs]
+        config_job_names = []
+        for item in obj.conf:
+            key = list(item.keys())[0]
+            value = item[key]
+            if type(value) == dict:
+                config_job_names.append(key)
+            elif type(value) == list:
+                for i in value:
+                    name = next(iter(i))
+                    config_job_names.append(name)
 
-        # Checking all jobs exist initially isn't a good idea as
-        # some jobs may be created by earlier jobs for example
-        # when using JJB.
+        missing_jobs = set(config_job_names) - set(server_job_names)
+        if missing_jobs:
+            print("The following jobs are in runjenkins config but arent"
+                  " defined on the jenkins master: {}".format(missing_jobs))
+            context.exit(1)
 
-        for jobdict in obj.conf:
-                job_name = list(jobdict.keys())[0]
-                params = jobdict[job_name]
-                if type(params) == dict:
-                    # serial build
-                    _runbuild(job_name, params, obj.server)
-                elif type(params) == list:
-                    # parallel
+    for jobdict in obj.conf:
+        job_name = list(jobdict.keys())[0]
+        params = jobdict[job_name]
+        if type(params) == dict:
+            # serial build, executed in the main thread,
+            # so exceptions can be caught normally.
+            try:
+                _runbuild(job_name, params, obj.server)
+            except BuildFailureException as e:
+                print(e)
+                context.exit(1)
+        elif type(params) == list:
+            # Parallel builds are executed in one thread per
+            # build. Exceptions can't be caught across threads
+            # so a queue is used to communicate the result back
+            # to the main thread.
 
-                    p_jobs = params
-                    logger.debug("Found parallel block {}".format(p_jobs))
+            p_jobs = params
+            logger.debug("Found parallel block {}".format(p_jobs))
 
-                    # Track threads in this list
-                    threads = []
+            # Track threads in this list
+            threads = []
+            # Track results in a threadsafe queue
+            results = queue.Queue()
 
-                    # Create and start a thread per job
-                    for p_jobdict in p_jobs:
-                        job_name = list(p_jobdict.keys())[0]
-                        params = p_jobdict[job_name]
-                        job_thread = threading.Thread(target=_runbuild,
-                                                      args=(job_name, params,
-                                                            obj.server,
-                                                            poll_interval))
-                        threads.append(job_thread)
-                        job_thread.start()
+            # Create and start a thread per job
+            for p_jobdict in p_jobs:
+                job_name = list(p_jobdict.keys())[0]
+                params = p_jobdict[job_name]
+                job_thread = threading.Thread(target=_runbuild,
+                                              args=(job_name, params,
+                                                    obj.server,
+                                                    poll_interval,
+                                                    results))
+                threads.append(job_thread)
+                job_thread.start()
 
-                    # Wait for every thread to finish before continuing
-                    for t in threads:
-                        # join with a short timeout so the main thread
-                        # can be interrupted regularly (eg by ctrl-c)
-                        while True:
-                            t.join(1)
-                            if not t.isAlive():
-                                break
-                else:
-                    raise ValueError("Invalid runjenkins conf")
-    # TODO: Does this actually work? may not be possible to
-    # catch exceptions across threads
-    except BuildFailureException as e:
-        print(e)
-        context.exit(1)
+            # Wait for every thread to finish before continuing
+            for t in threads:
+                # join with a short timeout so the main thread
+                # can be interrupted regularly (eg by ctrl-c)
+                while True:
+                    t.join(1)
+                    if not t.isAlive():
+                        break
+            # Set return code if there was at least one failure
+            # Stack trace will have already been printed
+            while not results.empty():
+                if not results.get():
+                    context.exit(1)
+
+        else:
+            raise ValueError("Invalid runjenkins conf")
 
 
 if __name__ == "__main__":
