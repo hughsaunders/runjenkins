@@ -6,7 +6,7 @@ else
     echo "On osx, install from brew, otherwise gem."
 fi
 bashate *.sh
-pylama --skip "*venv/*"
+pylama --skip "*venv/*" --ignore C901
 pytest test_runjenkins.py
 
 if which pandoc; then
