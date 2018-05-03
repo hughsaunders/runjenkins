@@ -1,7 +1,7 @@
 import datetime
 import os
 
-from setuptools import find_packages, setup
+from setuptools import setup
 
 
 def get_version():
@@ -21,7 +21,7 @@ setup(
     author='Hugh Saunders',
     author_email='hugh@wherenow.org',
     license='Apache',
-    packages=find_packages(),
+    py_modules=['runjenkins'],
     python_requires='>=3',
     version=get_version(),
     install_requires=[
@@ -31,7 +31,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'runjenkins=runjenkins.cli'
+            'runjenkins=runjenkins:cli'
         ]
     }
 )
