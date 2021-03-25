@@ -27,7 +27,7 @@ setup(
     install_requires=[
         'click==6.7',
         'python-jenkins==0.4.15',
-        'pyyaml==3.12',
+        'pyyaml==5.4',
     ],
     entry_points={
         'console_scripts': [
